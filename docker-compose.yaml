@@ -1,17 +1,46 @@
 version: '3'
+
+networks:
+  docker:
+
+volumes:
+  jenkins-data:
+  jenkins-docker-certs:
+
 services:
-  jenkins:
-    image: jenkins/jenkins:lts
-    container_name: jenkins
+  dind:
+    image: docker:dind
+    privileged: true
     restart: always
-    user: root
-    network_mode: "bridge"
+    networks:
+      docker:
+        aliases:
+          - docker
     ports:
-      - "8080:8080"
-      - "5000:5000"
-    environment:
-      TZ: Australia/West
+      - 2376:2376
+    tty: true
     volumes:
-    - /data/jenkins/jenkins_home:/var/jenkins_home
-    - /data/jenkins/home:/home
-    - /var/run/docker.sock:/var/run/docker.sock
+      - jenkins-data:/var/jenkins_home
+      - jenkins-docker-certs:/certs/client
+      - $HOME:/home
+    environment:
+      - DOCKER_TLS_CERTDIR=/certs
+  jenkins:
+    image: jenkins/jenkins:lts-jdk11
+    restart: always
+    networks:
+      - docker
+    ports:
+      - 8080:8080
+      - 50000:50000
+    tty: true
+    volumes:
+      - jenkins-data:/var/jenkins_home
+      - /usr/bin/docker:/usr/bin/docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      - jenkins-docker-certs:/certs/client:ro
+      - $HOME:/home
+    environment:
+      - DOCKER_HOST=tcp://docker:2376
+      - DOCKER_CERT_PATH=/certs/client
+      - DOCKER_TLS_VERIFY=1
